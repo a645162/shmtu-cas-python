@@ -99,7 +99,7 @@ class OcrCaptchaResolver:
         except (ConnectionError, socket.error, OSError) as e:
             msg = f"OCR连接失败: {e}"
             raise RuntimeError(msg) from e
-        return CaptchaAnswer(expression=expr)
+        return CaptchaAnswer.expression(expr)
 
 
 class OcrHttpCaptchaResolver:
@@ -117,7 +117,7 @@ class OcrHttpCaptchaResolver:
 
     async def resolve(self, image_data: bytes) -> CaptchaAnswer:
         expr = await self._ocr.ocr_auto_retry_async(image_data, self._max_retries)
-        return CaptchaAnswer(expression=expr)
+        return CaptchaAnswer.expression(expr)
 
 
 __all__ = [

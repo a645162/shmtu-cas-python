@@ -17,6 +17,8 @@ from .common import (
     CookieManager,
     cas_login,
     cas_redirect,
+    sync_client_from_cookie_manager,
+    sync_cookie_manager_from_client,
 )
 
 if TYPE_CHECKING:
@@ -56,18 +58,21 @@ class WechatAuth:
     # ========== 会话持久化 ==========
     def restore_session(self, json_str: str) -> None:
         self._cookies.restore(json_str)
+        sync_client_from_cookie_manager(self._client, self._cookies)
 
     def extract_session(self) -> str:
+        sync_cookie_manager_from_client(self._client, self._cookies)
         return self._cookies.extract()
 
     def get_cookie_string(self) -> str:
+        sync_cookie_manager_from_client(self._client, self._cookies)
         return self._cookies.get()
 
     # ========== 探测 ==========
     async def probe_login(self) -> LoginProbe:
         """探测热水登录状态.  200 = 已登录, 302 = 需要登录 (给 wengine_new_ticket)."""
         response = await self._request_with_cookies("GET", HOT_WATER_URL)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
 
         if response.status_code == 200:
             return LoginProbe.already_logged_in()
@@ -90,10 +95,12 @@ class WechatAuth:
         cas_login_url, new_cookie = await self._fetch_wengine_ticket(self._login_w_url)
         if new_cookie:
             self._cookies.restore(new_cookie)
+            sync_client_from_cookie_manager(self._client, self._cookies)
 
         execution, _ = await CasAuth.get_execution_async(
             self._client, cas_login_url, self._cookies.get()
         )
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if not execution:
             msg = "获取 execution 失败"
             raise RuntimeError(msg)
@@ -118,6 +125,7 @@ class WechatAuth:
         cas_login_url, new_cookie = await self._fetch_wengine_ticket(self._login_w_url)
         if new_cookie:
             self._cookies.restore(new_cookie)
+            sync_client_from_cookie_manager(self._client, self._cookies)
 
         result = await cas_login(
             self._client,
@@ -127,9 +135,11 @@ class WechatAuth:
             validate_code=validate_code,
             execution=execution,
         )
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if result.is_success:
             final_url = f"{result.location}&from={HOT_WATER_URL}"
             await cas_redirect(self._client, final_url)
+            sync_cookie_manager_from_client(self._client, self._cookies)
             return LoginSubmitResult.success()
         if result.is_password_error:
             return LoginSubmitResult.password_error()
@@ -178,7 +188,7 @@ class WechatAuth:
     # ========== 业务方法 ==========
     async def test_login_status(self) -> bool:
         response = await self._request_with_cookies("GET", HOT_WATER_URL)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if response.status_code == 200:
             return True
         if response.status_code in (301, 302, 308):
@@ -192,7 +202,7 @@ class WechatAuth:
     async def get_hot_water(self) -> str:
         """获取热水信息 HTML. 对齐 Rust ``WechatAuth::get_hot_water``."""
         response = await self._request_with_cookies("GET", HOT_WATER_URL)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if response.status_code == 200:
             return response.text
         msg = f"获取热水信息失败，状态码: {response.status_code}"
@@ -200,10 +210,9 @@ class WechatAuth:
 
     # ========== 内部辅助 ==========
     async def _request_with_cookies(self, method: str, url: str) -> httpx.Response:
-        headers: dict[str, str] = {}
-        if not self._cookies.is_empty():
-            headers["Cookie"] = self._cookies.get()
-        return await self._client.request(method, url, headers=headers)
+        response = await self._client.request(method, url)
+        sync_cookie_manager_from_client(self._client, self._cookies)
+        return response
 
     async def _fetch_wengine_ticket(self, url: str) -> tuple[str, str]:
         """跟随 wengine_new_ticket 一次跳转, 拿到 CAS 登录 URL.
@@ -211,7 +220,7 @@ class WechatAuth:
         Returns: ``(cas_login_url, new_cookie_string)``.
         """
         response = await self._client.get(url)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if response.status_code not in (301, 302, 308):
             msg = f"wengine_new_ticket未返回重定向，状态码: {response.status_code}"
             raise RuntimeError(msg)
@@ -222,14 +231,9 @@ class WechatAuth:
         return (cas_login_url, self._cookies.get())
 
     async def _fetch_captcha(self) -> bytes:
-        headers: dict[str, str] = {}
-        if not self._cookies.is_empty():
-            headers["Cookie"] = self._cookies.get()
-        response = await self._client.get(
-            "https://cas.shmtu.edu.cn/cas/captcha", headers=headers
-        )
+        response = await self._client.get("https://cas.shmtu.edu.cn/cas/captcha")
         if response.status_code != 200:
             msg = f"获取验证码失败，状态码: {response.status_code}"
             raise RuntimeError(msg)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
         return response.content

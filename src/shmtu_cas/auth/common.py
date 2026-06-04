@@ -190,6 +190,16 @@ class CookieManager:
         for h in headers:
             self.add_from_set_cookie(h)
 
+    def replace_from_mapping(self, mapping: dict[str, str]) -> None:
+        self._cookies = {
+            key.strip(): value.strip()
+            for key, value in mapping.items()
+            if key.strip() and value.strip()
+        }
+
+    def to_dict(self) -> dict[str, str]:
+        return dict(self._cookies)
+
     def get(self) -> str:
         return "; ".join(f"{k}={v}" for k, v in self._cookies.items())
 
@@ -198,6 +208,44 @@ class CookieManager:
 
     def clear(self) -> None:
         self._cookies.clear()
+
+
+def sync_cookie_manager_from_client(
+    client: httpx.AsyncClient, manager: CookieManager
+) -> None:
+    """把 ``httpx`` 内部 cookie jar 镜像到 ``CookieManager``.
+
+    Python 版本需要同时兼容:
+    - 运行时请求: 依赖 ``httpx.AsyncClient`` 自带的 cookie jar
+    - 会话导入/导出: 依赖 ``CookieManager`` 的 JSON 格式
+
+    这里统一以 client jar 为准，避免 execution / captcha / redirect
+    各阶段落在不同 cookie 视图里。
+
+    注意: ``httpx.Cookies.items()`` 在某些版本会触发内部 ``__getitem__('HttpOnly')``
+    (这是 httpx 的属性访问怪癖, 不是普通 dict 行为), 因此我们直接读 ``cookies.jar``
+    这个底层的 ``RequestsCookieJar`` 来安全获取 ``(name, value)`` 列表.
+    """
+
+    pairs: dict[str, str] = {}
+    jar = client.cookies.jar
+    for cookie in jar:
+        # 过滤掉 httpx 内部 sentinel
+        if not cookie.name or cookie.value is None:
+            continue
+        pairs[cookie.name] = cookie.value
+    manager.replace_from_mapping(pairs)
+
+
+def sync_client_from_cookie_manager(
+    client: httpx.AsyncClient, manager: CookieManager
+) -> None:
+    """把 ``CookieManager`` 中恢复出的 cookies 注入 ``httpx`` client."""
+
+    cookies = manager.to_dict()
+    client.cookies.clear()
+    if cookies:
+        client.cookies.update(cookies)
 
 
 # === CasAuth — 对齐 Kotlin ``CasAuth`` 静态方法集合的 Python 包装类 ===

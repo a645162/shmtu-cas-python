@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from shmtu_cas import (
     CaptchaAnswer,
     ExprCaptchaResolver,
     ManualCaptchaResolver,
+    OcrCaptchaResolver,
+    OcrHttpCaptchaResolver,
     get_expr_result,
 )
 from shmtu_cas.captcha.answer import CaptchaAnswerKind
+from shmtu_cas.captcha.http_ocr import CaptchaOcrHttp
+from shmtu_cas.captcha.tcp_ocr import CaptchaOcr
 
 
 class TestGetExprResult:
@@ -88,3 +94,37 @@ class TestManualCaptchaResolver:
         resolver = ManualCaptchaResolver(handler)
         result = await resolver.resolve(b"image")
         assert result.into_final_answer() == "46"
+
+
+class TestOcrCaptchaResolver:
+    @pytest.mark.asyncio
+    async def test_resolve_returns_expression_answer(self) -> None:
+        """回归: ``OcrCaptchaResolver.resolve`` 必须返回 ``CaptchaAnswer.expression(...)``.
+
+        之前误写为 ``CaptchaAnswer(expression=...)`` 会触发
+        ``TypeError: __init__() got an unexpected keyword argument 'expression'``.
+        """
+
+        class _StubOcr:
+            def ocr_auto_retry(self, image: bytes, retries: int) -> str:
+                return "12+34="
+
+        resolver = OcrCaptchaResolver(_StubOcr(), max_retries=2)  # type: ignore[arg-type]
+        result = await resolver.resolve(b"image")
+        assert result.kind is CaptchaAnswerKind.EXPRESSION
+        assert result.value == "12+34="
+
+
+class TestOcrHttpCaptchaResolver:
+    @pytest.mark.asyncio
+    async def test_resolve_returns_expression_answer(self) -> None:
+        """回归: ``OcrHttpCaptchaResolver.resolve`` 同样回归."""
+
+        class _StubOcr:
+            async def ocr_auto_retry_async(self, image: bytes, retries: int) -> str:
+                return "3+5="
+
+        resolver = OcrHttpCaptchaResolver(_StubOcr(), max_retries=2)  # type: ignore[arg-type]
+        result = await resolver.resolve(b"image")
+        assert result.kind is CaptchaAnswerKind.EXPRESSION
+        assert result.value == "3+5="

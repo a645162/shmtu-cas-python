@@ -36,6 +36,9 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/HaominKong/shmtu-cas-python"
 
+[project.scripts]
+shmtu-cas = "shmtu_cas.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/shmtu_cas"]
 

@@ -17,7 +17,8 @@ from .common import (
     CookieManager,
     cas_login,
     cas_redirect,
-    get_execution,
+    sync_client_from_cookie_manager,
+    sync_cookie_manager_from_client,
 )
 
 if TYPE_CHECKING:
@@ -61,12 +62,15 @@ class EpayAuth:
     def restore_session(self, json_str: str) -> None:
         """从 JSON 恢复 cookies (Android 端可对接 EncryptedSharedPreferences)."""
         self._cookies.restore(json_str)
+        sync_client_from_cookie_manager(self._client, self._cookies)
 
     def extract_session(self) -> str:
         """导出当前 cookies 为 JSON."""
+        sync_cookie_manager_from_client(self._client, self._cookies)
         return self._cookies.extract()
 
     def get_cookie_string(self) -> str:
+        sync_cookie_manager_from_client(self._client, self._cookies)
         return self._cookies.get()
 
     # ========== TGC 复用 ==========
@@ -85,7 +89,7 @@ class EpayAuth:
         """探测登录状态.  200 = 已登录, 302 = 需要登录."""
         url = f"{EPAY_BILL_URL}?pageNo=1&tabNo=1"
         response = await self._request_with_cookies("GET", url)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
 
         if response.status_code == 200:
             return LoginProbe.already_logged_in()
@@ -105,7 +109,13 @@ class EpayAuth:
         if self._login_url is None:
             msg = "尚未探测登录状态，请先调用 probe_login"
             raise RuntimeError(msg)
-        execution = await get_execution(self._client, self._login_url)
+        execution, _ = await CasAuth.get_execution_async(
+            self._client, self._login_url, self._cookies.get()
+        )
+        sync_cookie_manager_from_client(self._client, self._cookies)
+        if not execution:
+            msg = "获取 execution 失败"
+            raise RuntimeError(msg)
         image_data = await self._fetch_captcha()
         return LoginChallenge(execution=execution, captcha_image=image_data)
 
@@ -129,8 +139,13 @@ class EpayAuth:
             validate_code=validate_code,
             execution=execution,
         )
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if result.is_success:
+            # 清空 probe 阶段残留的 cookie, 让 callback 链从干净状态重新累积
+            # (对齐"登录后服务端会颁发 CASTGC / SERVICE 并清掉旧 TGC"的真实行为)
+            self._client.cookies.clear()
             await cas_redirect(self._client, result.location)
+            sync_cookie_manager_from_client(self._client, self._cookies)
             return LoginSubmitResult.success()
         if result.is_password_error:
             return LoginSubmitResult.password_error()
@@ -196,7 +211,7 @@ class EpayAuth:
         """测试是否已登录."""
         url = f"{EPAY_BILL_URL}?pageNo=1&tabNo=1"
         response = await self._request_with_cookies("GET", url)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if response.status_code == 200:
             return True
         if response.status_code in (301, 302, 308):
@@ -211,7 +226,7 @@ class EpayAuth:
         """获取账单页面 HTML."""
         url = f"{EPAY_BILL_URL}?pageNo={page_no}&tabNo={tab_no}"
         response = await self._request_with_cookies("GET", url)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
         if response.status_code == 200:
             return response.text
         if response.status_code in (301, 302, 308):
@@ -250,21 +265,15 @@ class EpayAuth:
 
     # ========== 内部辅助 ==========
     async def _request_with_cookies(self, method: str, url: str) -> httpx.Response:
-        headers: dict[str, str] = {}
-        if not self._cookies.is_empty():
-            headers["Cookie"] = self._cookies.get()
-        return await self._client.request(method, url, headers=headers)
+        response = await self._client.request(method, url)
+        sync_cookie_manager_from_client(self._client, self._cookies)
+        return response
 
     async def _fetch_captcha(self) -> bytes:
         """拉取验证码图片, 合并 Set-Cookie 到本地 jar."""
-        headers: dict[str, str] = {}
-        if not self._cookies.is_empty():
-            headers["Cookie"] = self._cookies.get()
-        response = await self._client.get(
-            "https://cas.shmtu.edu.cn/cas/captcha", headers=headers
-        )
+        response = await self._client.get("https://cas.shmtu.edu.cn/cas/captcha")
         if response.status_code != 200:
             msg = f"获取验证码失败，状态码: {response.status_code}"
             raise RuntimeError(msg)
-        self._cookies.add_all(response.headers.get_list("set-cookie"))
+        sync_cookie_manager_from_client(self._client, self._cookies)
         return response.content
