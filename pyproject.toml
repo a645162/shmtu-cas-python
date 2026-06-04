@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shmtu-cas"
-version = "0.1.0"
+version = "1.0.0"
 description = "上海海事大学 CAS / 一卡通 / 热水 Python 客户端库"
 readme = "README.md"
 requires-python = ">=3.10"
