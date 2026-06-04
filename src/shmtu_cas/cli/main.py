@@ -66,6 +66,31 @@ def _env(name: str, default: str) -> str:
     return value if value else default
 
 
+def _resolve_ocr_http_url(explicit: str | None) -> str:
+    """解析最终的 HTTP OCR base URL.
+
+    优先级:
+      1. 命令行显式 --ocr-http-url
+      2. 环境变量 ``SHMTU_OCR_HTTP_URL``
+      3. 环境变量 ``SHMTU_OCR_HOST`` (拼接端口, HTTP 端口优先 21600)
+      4. 硬编码默认 ``http://127.0.0.1:5000``
+
+    端口优先级: ``SHMTU_HTTP_PORT`` > ``SHMTU_OCR_PORT`` (TCP) > 21600
+    """
+    if explicit:
+        return explicit
+    env_url = os.environ.get("SHMTU_OCR_HTTP_URL")
+    if env_url:
+        return env_url
+    host = os.environ.get("SHMTU_OCR_HOST")
+    if host:
+        http_port = os.environ.get("SHMTU_HTTP_PORT")
+        if not http_port:
+            http_port = os.environ.get("SHMTU_OCR_PORT", "21600")
+        return f"http://{host}:{http_port}"
+    return "http://127.0.0.1:5000"
+
+
 def _parse_common_args(args: argparse.Namespace) -> CommonOpts:
     """从 argparse Namespace + 环境变量构造 ``CommonOpts``.
 
@@ -77,6 +102,8 @@ def _parse_common_args(args: argparse.Namespace) -> CommonOpts:
         or _env("SHMTU_USERNAME", "")
     )
     password = args.password or _env("SHMTU_PASSWORD", "")
+    # 只有当命令行没显式传入时, 才走 _resolve_ocr_http_url 自动拼接
+    ocr_http_url = _resolve_ocr_http_url(args.ocr_http_url)
     return CommonOpts(
         username=username,
         password=password,
@@ -84,7 +111,7 @@ def _parse_common_args(args: argparse.Namespace) -> CommonOpts:
         ocr_host=args.ocr_host,
         ocr_port=args.ocr_port,
         ocr_server_type=args.ocr_server_type,
-        ocr_http_url=args.ocr_http_url,
+        ocr_http_url=ocr_http_url,
     )
 
 
@@ -363,8 +390,10 @@ async def _cmd_captcha_test(args: argparse.Namespace) -> int:
     print("已保存验证码图片到 captcha_test.png")
 
     print("正在识别验证码...")
+    # 解析最终的 HTTP URL (若命令行/SHMTU_OCR_HTTP_URL 都没设, 从 SHMTU_OCR_HOST 拼)
+    ocr_http_url = _resolve_ocr_http_url(args.ocr_http_url)
     if args.ocr_server_type == "http":
-        ocr = CaptchaOcrHttp(base_url=args.ocr_http_url)
+        ocr = CaptchaOcrHttp(base_url=ocr_http_url)
         try:
             expr = await ocr.ocr_auto_retry_async(image, max_retries=3)
         except Exception as e:  # noqa: BLE001
@@ -481,8 +510,8 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--ocr-http-url",
-        default=_env("SHMTU_OCR_HTTP_URL", "http://127.0.0.1:5000"),
-        help="HTTP OCR 服务器 URL (env: SHMTU_OCR_HTTP_URL, 默认 http://127.0.0.1:5000)",
+        default=None,
+        help="HTTP OCR 服务器 URL (env: SHMTU_OCR_HTTP_URL, fallback SHMTU_OCR_HOST, 默认 http://127.0.0.1:5000)",
     )
 
 
@@ -539,8 +568,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_ct.add_argument(
         "--ocr-http-url",
-        default=_env("SHMTU_OCR_HTTP_URL", "http://127.0.0.1:5000"),
-        help="HTTP OCR 服务器 URL (env: SHMTU_OCR_HTTP_URL, 默认 http://127.0.0.1:5000)",
+        default=None,
+        help="HTTP OCR 服务器 URL (env: SHMTU_OCR_HTTP_URL, fallback SHMTU_OCR_HOST, 默认 http://127.0.0.1:5000)",
     )
 
     # parse
