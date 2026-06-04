@@ -1,0 +1,41 @@
+"""sync 子包 — 账单同步状态机 (对齐 Rust ``sync/`` 与 Kotlin ``sync/BillSync``)."""
+
+from .engine import (
+    AccountContext,
+    AccountSyncJob,
+    AccountSyncResult,
+    BillStore,
+    IncrementalBillStore,
+    ParallelSyncSummary,
+    SyncOptions,
+    SyncPageProgress,
+    SyncProgress,
+    SyncRangePreset,
+    SyncResult,
+    SyncStatus,
+    SyncStatusKind,
+    full_sync,
+    incremental_sync,
+    sync_account,
+    sync_accounts_parallel,
+)
+
+__all__ = [
+    "AccountContext",
+    "AccountSyncJob",
+    "AccountSyncResult",
+    "BillStore",
+    "IncrementalBillStore",
+    "ParallelSyncSummary",
+    "SyncOptions",
+    "SyncPageProgress",
+    "SyncProgress",
+    "SyncRangePreset",
+    "SyncResult",
+    "SyncStatus",
+    "SyncStatusKind",
+    "full_sync",
+    "incremental_sync",
+    "sync_account",
+    "sync_accounts_parallel",
+]

@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shmtu-cas"
+version = "0.1.0"
+description = "上海海事大学 CAS / 一卡通 / 热水 Python 客户端库"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Haomin Kong" }]
+keywords = ["shmtu", "cas", "ecard", "shanghai-maritime-university", "captcha"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.8",
+    "ruff>=0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/HaominKong/shmtu-cas-python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shmtu_cas"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/shmtu_cas", "README.md", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ASYNC", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
