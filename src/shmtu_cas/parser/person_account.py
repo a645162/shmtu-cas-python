@@ -11,6 +11,19 @@ from dataclasses import dataclass
 from bs4 import BeautifulSoup
 
 
+def guess_gender_from_id_number(id_number: str) -> str:
+    """根据身份证号第 17 位推断性别: 奇数=男性, 偶数=女性, 否则返回空字符串."""
+    if len(id_number) < 17:
+        return ""
+    ch = id_number[16]
+    if not ch.isdigit():
+        return ""
+    digit = int(ch)
+    if digit % 2 == 1:
+        return "男性"
+    return "女性"
+
+
 @dataclass
 class PersonAccountInfo:
     """一卡通个人账户页解析结果.
@@ -46,6 +59,7 @@ class PersonAccountInfo:
     gender: str = ""
     class_name: str = ""
     phone_num: str = ""
+    gender_from_id: str = ""
     id_type: str = ""
     id_number: str = ""
     remark: str = ""
@@ -154,6 +168,9 @@ def parse_person_account(html: str) -> PersonAccountInfo:
         # phone_num 兼容: 优先取 "手机", 若为空则用 "固话" 的值
         phone_num=base_info_map.get("手机", "")
         or base_info_map.get("固话", ""),
+        gender_from_id=guess_gender_from_id_number(
+            base_info_map.get("证件号码", "")
+        ),
         id_type=base_info_map.get("证件类型", ""),
         id_number=base_info_map.get("证件号码", ""),
         remark=base_info_map.get("备注", ""),
@@ -178,6 +195,7 @@ def person_account_to_dict(info: PersonAccountInfo) -> dict[str, object]:
         "gender": info.gender,
         "class_name": info.class_name,
         "phone_num": info.phone_num,
+        "gender_from_id": info.gender_from_id,
         "id_type": info.id_type,
         "id_number": info.id_number,
         "remark": info.remark,

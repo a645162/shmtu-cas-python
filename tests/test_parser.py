@@ -238,6 +238,8 @@ def test_parse_person_account_full() -> None:
     assert info.student_id == "202430500099"
     assert info.email == "zs@example.com"
     assert info.gender == "女"
+    # 身份证号 310101199901011234: 第 17 位是 3(奇数) → 男性
+    assert info.gender_from_id == "男性"
     assert info.class_name == "航运2024-1"
     assert info.phone_num == "13800138000"  # "手机" 字段
     # 真实一卡通页面 "手机" 字段常空, 实际手机号在 "固话" 字段

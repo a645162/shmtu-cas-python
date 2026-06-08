@@ -168,6 +168,8 @@ def _print_person_account(info: PersonAccountInfo) -> None:
     print(f"真实姓名: {info.real_name}")
     print(f"昵称: {info.nickname}")
     print(f"性别: {info.gender}")
+    if info.gender_from_id and info.gender_from_id != info.gender:
+        print(f"身份证推断性别: {info.gender_from_id}")
     print(f"班级: {info.class_name}")
     print(f"手机号: {info.phone_num}")
     print(f"证件类型: {info.id_type}")
