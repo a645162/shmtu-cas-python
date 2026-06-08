@@ -1,4 +1,4 @@
-"""CLI 入口 — 5 个子命令: bill / hot-water / captcha-test / parse / sync.
+"""CLI 入口 — 7 个子命令: bill / hot-water / person-account / captcha-test / parse / parse-person-account / sync.
 
 对齐 Rust ``shmtu-cas-cli`` (clap 子命令) 与 Kotlin ``cas_cli`` (手写解析).
 
@@ -38,6 +38,11 @@ from ..datatype.bill import BillItem, BillType
 from ..parser.bill import parse_bill_list, parse_bill_page
 from ..parser.export import CsvExporter
 from ..parser.hot_water import parse_hot_water_list
+from ..parser.person_account import (
+    PersonAccountInfo,
+    parse_person_account,
+    person_account_to_dict,
+)
 from ..sync.engine import (
     SyncOptions,
     incremental_sync,
@@ -143,6 +148,38 @@ def _print_bill(bill: BillItem) -> None:
         f"{bill.date_time_formatted} | {bill.item_type} | "
         f"{bill.target_user} | {bill.money_str} | {bill.status_str}"
     )
+
+
+def _print_person_account(info: PersonAccountInfo) -> None:
+    """格式化输出个人账户信息 — 与 Rust/Kotlin CLI 风格保持一致."""
+    print("===== 个人账户信息 =====")
+    print(f"姓名: {info.real_name}    实名认证: {info.real_name_auth_status}")
+    print()
+    print("[资金信息]")
+    print(f"现金资金: {info.cash_balance_raw} 元 ({info.cash_balance})")
+    print()
+    print("[安全信息]")
+    print(f"安全保护问题: {info.security_question_status}")
+    print(f"注册时间: {info.register_date}")
+    print()
+    print("[基本信息]")
+    print(f"学工号: {info.student_id}")
+    print(f"电子邮箱: {info.email}")
+    print(f"真实姓名: {info.real_name}")
+    print(f"昵称: {info.nickname}")
+    print(f"性别: {info.gender}")
+    print(f"班级: {info.class_name}")
+    print(f"手机: {info.mobile}")
+    print(f"固话: {info.fixed_line}")
+    print(f"证件类型: {info.id_type}")
+    print(f"证件号码: {info.id_number}")
+    print(f"备注: {info.remark}")
+    print(f"用户类型: {info.user_type}")
+    if info.csrf_token:
+        print()
+        print("[CSRF]")
+        print(f"token: {info.csrf_token}")
+        print(f"header: {info.csrf_header}")
 
 
 # =================== 登录流程 ===================
@@ -433,6 +470,58 @@ def _cmd_parse(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _cmd_person_account(args: argparse.Namespace) -> int:
+    """``shmtu-cas person-account`` 子命令: 登录 + 拉取个人账户页 + 解析."""
+    opts = _parse_common_args(args)
+    if not opts.username or not opts.password:
+        print("Error: --username 与 --password 必填 (或设置 SHMTU_USER_ID / SHMTU_PASSWORD)")
+        return 1
+
+    resolver = _build_resolver(opts)
+    async with EpayAuth(captcha_resolver=resolver) as epay:
+        if not await _login_epay(epay, opts.username, opts.password, resolver):
+            return 1
+
+        print("正在获取个人账户信息...")
+        try:
+            html = await epay.get_person_account_html()
+        except RuntimeError as e:
+            print(f"获取个人账户页失败: {e}")
+            return 1
+        info = parse_person_account(html)
+        _print_person_account(info)
+
+        if args.output:
+            import json
+            Path(args.output).write_text(
+                json.dumps(person_account_to_dict(info), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"已导出到 {args.output}")
+    return 0
+
+
+def _cmd_parse_person_account(args: argparse.Namespace) -> int:
+    """``shmtu-cas parse-person-account`` 子命令: 解析本地个人账户 HTML 文件."""
+    try:
+        html = Path(args.input).read_text(encoding="utf-8")
+    except OSError as e:
+        print(f"读取文件失败: {e}")
+        return 1
+
+    info = parse_person_account(html)
+    _print_person_account(info)
+
+    if args.output:
+        import json
+        Path(args.output).write_text(
+            json.dumps(person_account_to_dict(info), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        print(f"已导出到 {args.output}")
+    return 0
+
+
 async def _cmd_sync(args: argparse.Namespace) -> int:
     """``shmtu-cas sync`` 子命令: 增量同步到本地 JSON."""
     opts = _parse_common_args(args)
@@ -547,6 +636,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_hw = subparsers.add_parser("hot-water", help="登录微信平台并获取宿舍热水状态")
     _add_common_args(p_hw)
 
+    # person-account
+    p_pa = subparsers.add_parser(
+        "person-account", help="登录一卡通平台并获取个人账户信息(余额/认证/学工号/证件等)"
+    )
+    _add_common_args(p_pa)
+    p_pa.add_argument("-o", "--output", help="JSON 输出路径 (可选)")
+
     # captcha-test
     p_ct = subparsers.add_parser("captcha-test", help="测试验证码 OCR 服务")
     p_ct.add_argument(
@@ -577,6 +673,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_parse.add_argument("-i", "--input", required=True, help="HTML 文件路径")
     p_parse.add_argument("-o", "--output", help="CSV 输出路径")
 
+    # parse-person-account
+    p_ppa = subparsers.add_parser("parse-person-account", help="解析本地个人账户 HTML 文件")
+    p_ppa.add_argument("-i", "--input", required=True, help="HTML 文件路径")
+    p_ppa.add_argument("-o", "--output", help="JSON 输出路径 (可选)")
+
     # sync
     p_sync = subparsers.add_parser("sync", help="增量同步账单到本地 JSON 存档")
     _add_common_args(p_sync)
@@ -606,10 +707,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "parse":
         return _cmd_parse(args)
+    if args.command == "parse-person-account":
+        return _cmd_parse_person_account(args)
     if args.command == "bill":
         return asyncio.run(_cmd_bill(args))
     if args.command == "hot-water":
         return asyncio.run(_cmd_hot_water(args))
+    if args.command == "person-account":
+        return asyncio.run(_cmd_person_account(args))
     if args.command == "captcha-test":
         return asyncio.run(_cmd_captcha_test(args))
     if args.command == "sync":

@@ -34,6 +34,11 @@ from .parser.bill import (
 )
 from .parser.export import CsvExporter
 from .parser.hot_water import HotWaterInfo, parse_hot_water_list
+from .parser.person_account import (
+    PersonAccountInfo,
+    parse_person_account,
+    person_account_to_dict,
+)
 from .session.exceptions import ManualCaptchaRequiredException
 from .session.models import (
     LoginChallenge,
@@ -98,11 +103,14 @@ __all__ = [
     "BillParseResult",
     "CsvExporter",
     "HotWaterInfo",
+    "PersonAccountInfo",
     "get_total_pages",
     "parse_bill_item",
     "parse_bill_list",
     "parse_bill_page",
     "parse_hot_water_list",
+    "parse_person_account",
+    "person_account_to_dict",
     # session
     "LoginChallenge",
     "LoginProbe",

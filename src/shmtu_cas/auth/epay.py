@@ -263,6 +263,32 @@ class EpayAuth:
             pages.append(html)
         return pages
 
+    # ========== 个人账户页 ==========
+
+    EPAY_PERSON_ACCOUNT_URL = "https://ecard.shmtu.edu.cn/epay/personaccount/index"
+
+    async def get_person_account_html(self) -> str:
+        """访问 ``/epay/personaccount/index`` 页面.
+
+        经验证,无需 Referer 也能正常获取完整页面内容;只发送 epay 的会话 Cookie
+        (依赖登录态)即可。需要已登录的 epay cookies.
+
+        对齐 Kotlin ``EpayAuth.getPersonAccountHtml``.
+
+        Raises:
+            RuntimeError: 当响应不是 200 时 (如 302 表示未登录).
+        """
+        response = await self._request_with_cookies("GET", self.EPAY_PERSON_ACCOUNT_URL)
+        sync_cookie_manager_from_client(self._client, self._cookies)
+        if response.status_code == 200:
+            return response.text
+        if response.status_code in (301, 302, 308):
+            location = response.headers.get("location", "")
+            msg = f"未登录或会话已过期，需要重新登录 (302 -> {location})"
+            raise RuntimeError(msg)
+        msg = f"获取个人账户页失败，状态码: {response.status_code}"
+        raise RuntimeError(msg)
+
     # ========== 内部辅助 ==========
     async def _request_with_cookies(self, method: str, url: str) -> httpx.Response:
         response = await self._client.request(method, url)
