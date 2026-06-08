@@ -20,7 +20,7 @@ class PersonAccountInfo:
 
     基本信息:
         student_id / real_name / gender / fixed_line / id_type / id_number
-        email / nickname / class_name / mobile / remark / user_type
+        email / nickname / class_name / phone_num / remark / user_type
 
     头部:
         real_name / real_name_auth_status
@@ -45,8 +45,7 @@ class PersonAccountInfo:
     nickname: str = ""
     gender: str = ""
     class_name: str = ""
-    mobile: str = ""
-    fixed_line: str = ""
+    phone_num: str = ""
     id_type: str = ""
     id_number: str = ""
     remark: str = ""
@@ -151,8 +150,10 @@ def parse_person_account(html: str) -> PersonAccountInfo:
         nickname=base_info_map.get("昵称", ""),
         gender=base_info_map.get("性别", ""),
         class_name=base_info_map.get("班级", ""),
-        mobile=base_info_map.get("手机", ""),
-        fixed_line=base_info_map.get("固话", ""),
+        # 一卡通页面 "手机" 字段常空, 真实手机号放在 "固话" 字段
+        # phone_num 兼容: 优先取 "手机", 若为空则用 "固话" 的值
+        phone_num=base_info_map.get("手机", "")
+        or base_info_map.get("固话", ""),
         id_type=base_info_map.get("证件类型", ""),
         id_number=base_info_map.get("证件号码", ""),
         remark=base_info_map.get("备注", ""),
@@ -176,8 +177,7 @@ def person_account_to_dict(info: PersonAccountInfo) -> dict[str, object]:
         "nickname": info.nickname,
         "gender": info.gender,
         "class_name": info.class_name,
-        "mobile": info.mobile,
-        "fixed_line": info.fixed_line,
+        "phone_num": info.phone_num,
         "id_type": info.id_type,
         "id_number": info.id_number,
         "remark": info.remark,

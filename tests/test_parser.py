@@ -239,8 +239,9 @@ def test_parse_person_account_full() -> None:
     assert info.email == "zs@example.com"
     assert info.gender == "女"
     assert info.class_name == "航运2024-1"
-    assert info.mobile == "13800138000"
-    assert info.fixed_line == "021-12345678"
+    assert info.phone_num == "13800138000"  # "手机" 字段
+    # 真实一卡通页面 "手机" 字段常空, 实际手机号在 "固话" 字段
+    # 我们的 parser 做了兼容合并: phone_num 优先取 "手机", 为空时取 "固话"
     assert info.id_type == "身份证"
     assert info.id_number == "310101199901011234"
     assert info.user_type == "本科生"
