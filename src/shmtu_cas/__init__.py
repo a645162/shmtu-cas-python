@@ -25,6 +25,25 @@ from .classifier.classify import BillCategory, BillClassifier, CategoryRule
 from .classifier.position import PositionEntry, PositionTranslator
 from .datatype.bill import BillItem, BillType, sum_money
 from .datatype.status import BillItemStatus
+from .model_download import (
+    DEFAULT_BACKBONE,
+    DEFAULT_PRECISION,
+    DEFAULT_TAG,
+    GITEE_BASE_URL,
+    GITEE_RELEASES_API,
+    GITHUB_BASE_URL,
+    GITHUB_RELEASES_API,
+    MANIFEST_NAME,
+    ModelSource,
+    ReleaseManifest,
+    ReleaseTag,
+    download_v2_models,
+    fetch_manifest,
+    list_release_tags,
+    parse_release_manifest,
+    resolve_latest_tag,
+    select_artifact,
+)
 from .parser.bill import (
     BillParseResult,
     get_total_pages,
@@ -111,6 +130,24 @@ __all__ = [
     "parse_hot_water_list",
     "parse_person_account",
     "person_account_to_dict",
+    # model_download
+    "DEFAULT_BACKBONE",
+    "DEFAULT_PRECISION",
+    "DEFAULT_TAG",
+    "GITEE_BASE_URL",
+    "GITEE_RELEASES_API",
+    "GITHUB_BASE_URL",
+    "GITHUB_RELEASES_API",
+    "MANIFEST_NAME",
+    "ModelSource",
+    "ReleaseManifest",
+    "ReleaseTag",
+    "download_v2_models",
+    "fetch_manifest",
+    "list_release_tags",
+    "parse_release_manifest",
+    "resolve_latest_tag",
+    "select_artifact",
     # session
     "LoginChallenge",
     "LoginProbe",
